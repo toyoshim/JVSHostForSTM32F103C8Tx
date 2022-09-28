@@ -16,6 +16,7 @@ static struct JVSIO_DataClient data_client;
 static struct JVSIO_SenseClient sense_client;
 static struct JVSIO_LedClient led_client;
 static struct JVSIO_TimeClient time_client;
+static struct JVSIO_HostClient host_client;
 static struct JVSIO_Lib* io = NULL;
 
 extern ADC_HandleTypeDef hadc1;  // for JVS sense
@@ -146,6 +147,79 @@ static uint32_t time_getTick(struct JVSIO_TimeClient* client) {
   return HAL_GetTick();
 }
 
+static void host_receiveIoId(struct JVSIO_HostClient* client,
+                             uint8_t address,
+                             uint8_t* data,
+                             uint8_t len) {
+  char sbuf[256];
+  size_t size = snprintf(sbuf, 256, "ID: %s\r\n", data);
+  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+}
+static void host_receiveCommandRev(struct JVSIO_HostClient* client,
+                                   uint8_t address,
+                                   uint8_t rev) {
+  data_dump(0, "Command Rev", &rev, 1);
+}
+static void host_receiveJvRev(struct JVSIO_HostClient* client,
+                              uint8_t address,
+                              uint8_t rev) {
+  data_dump(0, "Jv Rev", &rev, 1);
+}
+static void host_receiveProtocolVer(struct JVSIO_HostClient* client,
+                                    uint8_t address,
+                                    uint8_t ver) {
+  data_dump(0, "Protocol Ver", &ver, 1);
+}
+static void host_receiveFunctionCheck(struct JVSIO_HostClient* client,
+                                      uint8_t address,
+                                      uint8_t* data,
+                                      uint8_t len) {
+  data_dump(0, "Function Check", data, len);
+}
+
+static void host_synced(struct JVSIO_HostClient* client,
+                        uint8_t players,
+                        uint8_t coin_state,
+                        uint8_t* sw_state0,
+                        uint8_t* sw_state1) {
+  char sbuf[256];
+  size_t size = snprintf(sbuf, 256, "%s\r\n", "--------------------");
+  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  size = snprintf(sbuf, 256, "Players: %d\r\n", players);
+  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  size =
+      snprintf(sbuf, 256, "Test: %s\r\n", (coin_state & 0x80) ? "ON" : "OFF");
+  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  for (uint8_t player = 0; player < players; ++player) {
+    size = snprintf(sbuf, 256, "Coin %d: %s\r\n", player + 1,
+                    (coin_state & (1 << player)) ? "ON" : "OFF");
+    HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  }
+  size = snprintf(sbuf, 256, "%s\r\n", "  StSvUpDnLtRtP1P2P3P4P5P6P7P8P9Pa");
+  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  size = snprintf(sbuf, 256, "%s\r\n", "P0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0");
+  for (uint8_t player = 0; player < players; ++player) {
+    sbuf[1] = '1' + player;
+    sbuf[3] = (sw_state0[player] & 0x80) ? '1' : '0';
+    sbuf[5] = (sw_state0[player] & 0x40) ? '1' : '0';
+    sbuf[7] = (sw_state0[player] & 0x20) ? '1' : '0';
+    sbuf[9] = (sw_state0[player] & 0x10) ? '1' : '0';
+    sbuf[11] = (sw_state0[player] & 0x08) ? '1' : '0';
+    sbuf[13] = (sw_state0[player] & 0x04) ? '1' : '0';
+    sbuf[15] = (sw_state0[player] & 0x02) ? '1' : '0';
+    sbuf[17] = (sw_state0[player] & 0x01) ? '1' : '0';
+    sbuf[19] = (sw_state1[player] & 0x80) ? '1' : '0';
+    sbuf[21] = (sw_state1[player] & 0x40) ? '1' : '0';
+    sbuf[23] = (sw_state1[player] & 0x20) ? '1' : '0';
+    sbuf[25] = (sw_state1[player] & 0x10) ? '1' : '0';
+    sbuf[27] = (sw_state1[player] & 0x08) ? '1' : '0';
+    sbuf[29] = (sw_state1[player] & 0x04) ? '1' : '0';
+    sbuf[31] = (sw_state1[player] & 0x02) ? '1' : '0';
+    sbuf[33] = (sw_state1[player] & 0x01) ? '1' : '0';
+    HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, 36, 10);
+  };
+}
+
 void JVS_HOST_Init() {
   data_client.available = data_available;
   data_client.setInput = data_setInput;
@@ -169,10 +243,20 @@ void JVS_HOST_Init() {
   time_client.delay = time_delay;
   time_client.getTick = time_getTick;
 
+  host_client.receiveIoId = host_receiveIoId;
+  host_client.receiveCommandRev = host_receiveCommandRev;
+  host_client.receiveJvRev = host_receiveJvRev;
+  host_client.receiveProtocolVer = host_receiveProtocolVer;
+  host_client.receiveFunctionCheck = host_receiveFunctionCheck;
+  host_client.synced = host_synced;
+
   io = JVSIO_open(&data_client, &sense_client, &led_client, &time_client, 0);
   io->begin(io);
 }
 
 void JVS_HOST_Run() {
-  io->host(io);
+  if (io->host(io, &host_client)) {
+    // Call `sync` while the bus is ready, or once per frame.
+    io->sync(io);
+  }
 }
