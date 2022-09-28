@@ -90,6 +90,7 @@ static bool data_setCommSupMode(struct JVSIO_DataClient* client,
   return false;
 }
 
+// optional for debug logging.
 static void data_dump(struct JVSIO_DataClient* client,
                       const char* str,
                       uint8_t* data,
@@ -131,6 +132,7 @@ static bool sense_isConnected(struct JVSIO_SenseClient* client) {
   return connected;
 }
 
+// Not used for host.
 static void led_begin(struct JVSIO_LedClient* client) {}
 static void led_set(struct JVSIO_LedClient* client, bool ready) {}
 
@@ -144,9 +146,11 @@ static void time_delay(struct JVSIO_TimeClient* client, unsigned int msec) {
 }
 
 static uint32_t time_getTick(struct JVSIO_TimeClient* client) {
+  // Returns msec from the boot.
   return HAL_GetTick();
 }
 
+// optional.
 static void host_receiveIoId(struct JVSIO_HostClient* client,
                              uint8_t address,
                              uint8_t* data,
@@ -155,21 +159,29 @@ static void host_receiveIoId(struct JVSIO_HostClient* client,
   size_t size = snprintf(sbuf, 256, "ID: %s\r\n", data);
   HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
 }
+
+// optional.
 static void host_receiveCommandRev(struct JVSIO_HostClient* client,
                                    uint8_t address,
                                    uint8_t rev) {
   data_dump(0, "Command Rev", &rev, 1);
 }
+
+// optional.
 static void host_receiveJvRev(struct JVSIO_HostClient* client,
                               uint8_t address,
                               uint8_t rev) {
   data_dump(0, "Jv Rev", &rev, 1);
 }
+
+// optional.
 static void host_receiveProtocolVer(struct JVSIO_HostClient* client,
                                     uint8_t address,
                                     uint8_t ver) {
   data_dump(0, "Protocol Ver", &ver, 1);
 }
+
+// optional.
 static void host_receiveFunctionCheck(struct JVSIO_HostClient* client,
                                       uint8_t address,
                                       uint8_t* data,
@@ -177,11 +189,35 @@ static void host_receiveFunctionCheck(struct JVSIO_HostClient* client,
   data_dump(0, "Function Check", data, len);
 }
 
+// Receives up-to-date switch states after the `sync` call.
+// Multiple JVS I/O devices up to 4 can be merged to represent 4 players.
+//   players: 1-4
+//   coin_state: bitN - player(N+1) coin ON(1)/OFF(0)
+//               bit7 - test switch ON(1)/OFF(0)
+//   sw_state0[N]: player(N+1)
+//      bit7: start
+//      bit6: service
+//      bit5: up
+//      bit4: down
+//      bit3: left
+//      bit2: right
+//      bit1: push button 1
+//      bit0: push button 2
+//   sw_state1[N]: player(N+1)
+//      bit7: push button 3
+//      bit6: push button 4
+//      bit5: push button 5
+//      bit4: push button 6
+//      bit3: push button 7
+//      bit2: push button 8
+//      bit1: push button 9
+//      bit0: push button 10
 static void host_synced(struct JVSIO_HostClient* client,
                         uint8_t players,
                         uint8_t coin_state,
                         uint8_t* sw_state0,
                         uint8_t* sw_state1) {
+  // Example to dump all information.
   char sbuf[256];
   size_t size = snprintf(sbuf, 256, "%s\r\n", "--------------------");
   HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
@@ -243,11 +279,11 @@ void JVS_HOST_Init() {
   time_client.delay = time_delay;
   time_client.getTick = time_getTick;
 
-  host_client.receiveIoId = host_receiveIoId;
-  host_client.receiveCommandRev = host_receiveCommandRev;
-  host_client.receiveJvRev = host_receiveJvRev;
-  host_client.receiveProtocolVer = host_receiveProtocolVer;
-  host_client.receiveFunctionCheck = host_receiveFunctionCheck;
+  host_client.receiveIoId = host_receiveIoId;                    // or 0
+  host_client.receiveCommandRev = host_receiveCommandRev;        // or 0
+  host_client.receiveJvRev = host_receiveJvRev;                  // or 0
+  host_client.receiveProtocolVer = host_receiveProtocolVer;      // or 0
+  host_client.receiveFunctionCheck = host_receiveFunctionCheck;  // or 0
   host_client.synced = host_synced;
 
   io = JVSIO_open(&data_client, &sense_client, &led_client, &time_client, 0);
@@ -257,6 +293,7 @@ void JVS_HOST_Init() {
 void JVS_HOST_Run() {
   if (io->host(io, &host_client)) {
     // Call `sync` while the bus is ready, or once per frame.
+    // `synced` will be called when the response is parsed.
     io->sync(io);
   }
 }
