@@ -6,7 +6,7 @@ An example project to implement JVS Host with jvsio on STM32F103C8Tx.
 - USART1_RX/USART1_TX: optional for debug logging.
 - USART2_RX/USART2_TX: JVS communication ports, connected to an external RS-485.
 - USART2_DIR(PA1): JVS communication port control, connected to an external RS-485.
-- ADC1_IN0: JVS sense, with DMA transmission.
+- ADC1_IN5: JVS sense, with DMA transmission.
 
 ## jvs_host.{c|h}
 Chip specific implementation to use the jvsio library.

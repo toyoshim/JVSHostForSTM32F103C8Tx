@@ -52,10 +52,9 @@ static int data_available(struct JVSIO_DataClient* client) {
 }
 
 static void data_setInput(struct JVSIO_DataClient* client) {
+  tx_closing = true;
   if (tx_size == 0) {
     HAL_GPIO_WritePin(USART2_DIR_GPIO_Port, USART2_DIR_Pin, GPIO_PIN_RESET);
-  } else {
-    tx_closing = true;
   }
   rx_available = false;
 }
@@ -127,9 +126,6 @@ static bool sense_isConnected(struct JVSIO_SenseClient* client) {
   // The I/O drives the sense signal to 2.5V on their connections.
   // So, assumes less than 60000 meant there is a device on the bus.
   bool connected = sense_data < 60000;
-
-  // Request the next data
-  sense_begin(client);
 
   return connected;
 }
