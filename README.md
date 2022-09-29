@@ -8,6 +8,11 @@ An example project to implement JVS Host with jvsio on STM32F103C8Tx.
 - USART2_DIR(PA1): JVS communication port control, connected to an external RS-485.
 - ADC1_IN5: JVS sense, with DMA transmission.
 
+## Schematic
+![Schematic](scm.png)
+Here is a simple schematic that explains the external wiring. It omits the most
+common parts on the STM32.
+
 ## jvs_host.{c|h}
 Chip specific implementation to use the jvsio library.
 
