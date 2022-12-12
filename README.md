@@ -32,8 +32,9 @@ Also, CubeMX should generate proper configuration code to set up everything corr
 ## macOS
 You will need `make` and `gcc` for arm-none-eabi. One of the easiest ways is to use `Brew` to install `make` and `arm-none-eabi-gcc`.
 ```
+$ brew tap ArmMbed/homebrew-formulae
 $ brew install make arm-none-eabi-gcc
-$ git clone git@github.com:toyoshim/JVSHostForSTM32F103C8Tx.git
+$ git clone https://github.com/toyoshim/JVSHostForSTM32F103C8Tx.git
 $ cd JVSHostForSTM32F103C8Tx 
 $ git submodule update --init
 $ make
