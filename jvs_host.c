@@ -98,7 +98,7 @@ static void data_dump(struct JVSIO_DataClient* client,
   char sbuf[32];
   size_t size = snprintf(sbuf, 32, "%s: ", str);
   HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 1);
-  for (uint i = 0; i < len; ++i) {
+  for (uint8_t i = 0; i < len; ++i) {
     size = snprintf(sbuf, 32, "%02x", data[i]);
     HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 1);
   }

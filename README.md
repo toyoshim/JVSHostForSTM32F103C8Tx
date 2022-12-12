@@ -28,3 +28,24 @@ while (1)
 ```
 Also, CubeMX should generate proper configuration code to set up everything correctly.
 
+# How to build
+## macOS
+You will need `make` and `gcc` for arm-none-eabi. One of the easiest ways is to use `Brew` to install `make` and `arm-none-eabi-gcc`.
+```
+$ brew install make arm-none-eabi-gcc
+$ git clone git@github.com:toyoshim/JVSHostForSTM32F103C8Tx.git
+$ cd JVSHostForSTM32F103C8Tx 
+$ git submodule update --init
+$ make
+```
+
+## Windows
+Using WSL and follwing the process for Debian/Ubuntu is the easist way.
+
+## Debian/Ubuntu
+```
+$ apt install make gcc-arm-none-eabi
+$ cd JVSHostForSTM32F103C8Tx 
+$ git submodule update --init
+$ make
+```
