@@ -41,7 +41,7 @@ $ make
 ```
 
 ## Windows
-Using WSL and follwing the process for Debian/Ubuntu is the easist way.
+Using WSL and the follwing steps for Debian/Ubuntu is the easist way.
 
 ## Debian/Ubuntu
 ```
