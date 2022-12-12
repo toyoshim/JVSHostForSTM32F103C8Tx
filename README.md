@@ -46,6 +46,7 @@ Using WSL and follwing the process for Debian/Ubuntu is the easist way.
 ## Debian/Ubuntu
 ```
 $ apt install make gcc-arm-none-eabi
+$ git clone https://github.com/toyoshim/JVSHostForSTM32F103C8Tx.git
 $ cd JVSHostForSTM32F103C8Tx 
 $ git submodule update --init
 $ make
