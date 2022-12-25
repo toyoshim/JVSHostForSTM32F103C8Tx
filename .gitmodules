@@ -1,3 +1,6 @@
 [submodule "jvsio"]
 	path = jvsio
 	url = https://github.com/toyoshim/jvsio.git
+[submodule "libopencm3"]
+	path = libopencm3
+	url = https://github.com/libopencm3/libopencm3.git

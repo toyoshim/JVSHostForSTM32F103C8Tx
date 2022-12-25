@@ -5,7 +5,7 @@
 #if !defined(__jvs_host_h__)
 #define __jvs_host_h__
 
-void JVS_HOST_Init();
-void JVS_HOST_Run();
+void JVS_HOST_Init(void);
+void JVS_HOST_Run(void);
 
-#endif // !defined(__jvs_host_h__)
+#endif  // !defined(__jvs_host_h__)
