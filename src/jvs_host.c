@@ -199,7 +199,7 @@ static void led_set(struct JVSIO_LedClient* client, bool ready) {
 static void time_delayMicroseconds(struct JVSIO_TimeClient* client,
                                    unsigned int usec) {
   (void)client;
-  uint32_t t = tick + (usec / 100);
+  uint32_t t = tick + 1 + (200 + (usec << 3)) / 1000;
   while (tick < t)
     ;
 }
@@ -207,7 +207,7 @@ static void time_delayMicroseconds(struct JVSIO_TimeClient* client,
 static void time_delay(struct JVSIO_TimeClient* client, unsigned int msec) {
   (void)client;
   (void)msec;
-  uint32_t t = tick + msec * 10;
+  uint32_t t = tick + (msec << 3);
   while (tick < t)
     ;
 }
@@ -215,8 +215,7 @@ static void time_delay(struct JVSIO_TimeClient* client, unsigned int msec) {
 static uint32_t time_getTick(struct JVSIO_TimeClient* client) {
   (void)client;
   // Returns msec from the boot.
-  // return HAL_GetTick();
-  return 0;
+  return tick >> 3;
 }
 
 // optional.
@@ -343,8 +342,8 @@ void JVS_HOST_Init() {
 
   usart1_tx_init();
 
-  // Need to adjust the value so that the interrupt occurs in every 0.1ms.
-  systick_set_reload(800);
+  // Need to adjust the value so that the interrupt occurs in every 1/8 ms.
+  systick_set_reload(1000);
   systick_set_clocksource(STK_CSR_CLKSOURCE_AHB);
   systick_counter_enable();
   systick_interrupt_enable();
