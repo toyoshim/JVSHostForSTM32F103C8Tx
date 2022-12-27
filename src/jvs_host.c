@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "libopencm3/cm3/nvic.h"
+#include "libopencm3/cm3/systick.h"
 #include "libopencm3/stm32/gpio.h"
 #include "libopencm3/stm32/rcc.h"
 #include "libopencm3/stm32/usart.h"
@@ -22,6 +24,8 @@ static struct JVSIO_TimeClient time_client;
 static struct JVSIO_HostClient host_client;
 static struct JVSIO_Lib* io = NULL;
 
+static volatile uint32_t tick = 0;
+
 static uint32_t sense_data;
 
 static uint8_t tx_buffer[256];
@@ -30,7 +34,12 @@ static bool tx_closing;
 static uint8_t rx_data;
 static bool rx_available;
 
+void sys_tick_handler(void) {
+  tick++;
+}
+
 static void usart1_tx_init(void) {
+#if defined(_DBGLOG)
   // Activate UART1 TX for debug logging.
   rcc_periph_clock_enable(RCC_USART1);
 
@@ -45,11 +54,17 @@ static void usart1_tx_init(void) {
   usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
 
   usart_enable(USART1);
+#endif
 }
 
 static void usart1_tx_write(char* data, size_t size) {
+#if defined(_DBGLOG)
   for (size_t i = 0; i < size; ++i)
     usart_send_blocking(USART1, data[i]);
+#else
+  (void)data;
+  (void)size;
+#endif
 }
 
 /*
@@ -184,14 +199,17 @@ static void led_set(struct JVSIO_LedClient* client, bool ready) {
 static void time_delayMicroseconds(struct JVSIO_TimeClient* client,
                                    unsigned int usec) {
   (void)client;
-  (void)usec;
-  // HAL_Delay(usec / 1000);
+  uint32_t t = tick + (usec / 100);
+  while (tick < t)
+    ;
 }
 
 static void time_delay(struct JVSIO_TimeClient* client, unsigned int msec) {
   (void)client;
   (void)msec;
-  // HAL_Delay(msec);
+  uint32_t t = tick + msec * 10;
+  while (tick < t)
+    ;
 }
 
 static uint32_t time_getTick(struct JVSIO_TimeClient* client) {
@@ -211,8 +229,8 @@ static void host_receiveIoId(struct JVSIO_HostClient* client,
   (void)data;
   (void)len;
   char sbuf[256];
-  // size_t size = snprintf(sbuf, 256, "ID: %s\r\n", data);
-  //  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  size_t size = snprintf(sbuf, 256, "ID: %s\r\n", data);
+  usart1_tx_write(sbuf, size);
 }
 
 // optional.
@@ -323,9 +341,13 @@ static void host_synced(struct JVSIO_HostClient* client,
 void JVS_HOST_Init() {
   rcc_periph_clock_enable(RCC_GPIOA);
 
-#if defined(_DBGLOG)
   usart1_tx_init();
-#endif  // defined(_DBGLOG)
+
+  // Need to adjust the value so that the interrupt occurs in every 0.1ms.
+  systick_set_reload(800);
+  systick_set_clocksource(STK_CSR_CLKSOURCE_AHB);
+  systick_counter_enable();
+  systick_interrupt_enable();
 
   data_client.available = data_available;
   data_client.setInput = data_setInput;
