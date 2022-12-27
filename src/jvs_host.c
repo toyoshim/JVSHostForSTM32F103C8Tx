@@ -28,9 +28,10 @@ static volatile uint32_t tick = 0;
 
 static uint32_t sense_data;
 
-static uint8_t tx_buffer[256];
-static uint8_t tx_size;
-static bool tx_closing;
+static volatile uint8_t tx_buffer[256];
+static volatile uint8_t tx_index;
+static volatile uint8_t tx_size;
+static volatile bool tx_closing;
 static uint8_t rx_data;
 static bool rx_available;
 
@@ -67,17 +68,22 @@ static void usart1_tx_write(char* data, size_t size) {
 #endif
 }
 
-/*
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
-  if (huart != &huart2)
-    return;
-  tx_size = 0;
-  if (tx_closing) {
-    HAL_GPIO_WritePin(USART2_DIR_GPIO_Port, USART2_DIR_Pin, GPIO_PIN_RESET);
-    tx_closing = false;
+void usart2_isr(void) {
+  if (((USART_CR1(USART2) & USART_CR1_TXEIE) != 0) &&
+      (USART_SR(USART2) & USART_SR_TXE) != 0) {
+    usart_send(USART2, tx_buffer[++tx_index]);
+    if (tx_index == tx_size)
+      usart_enable_tx_complete_interrupt(USART2);
+  }
+  if (((USART_CR1(USART2) & USART_CR1_TCIE) != 0) &&
+      (USART_SR(USART2) & USART_SR_TC) != 0) {
+    tx_size = 0;
+    if (tx_closing) {
+      gpio_clear(GPIOA, GPIO1);
+      tx_closing = false;
+    }
   }
 }
-*/
 
 static int data_available(struct JVSIO_DataClient* client) {
   (void)client;
@@ -85,8 +91,9 @@ static int data_available(struct JVSIO_DataClient* client) {
     return 0;
   if (rx_available)
     return 1;
-  // if (HAL_OK != HAL_UART_Receive(&huart2, &rx_data, 1, 0))
-  //   return 0;
+
+  if (!usart_get_flag(USART2, USART_SR_RXNE))
+    return 0;
   rx_available = true;
   return 1;
 }
@@ -94,26 +101,27 @@ static int data_available(struct JVSIO_DataClient* client) {
 static void data_setInput(struct JVSIO_DataClient* client) {
   (void)client;
   tx_closing = true;
-  // if (tx_size == 0) {
-  //   HAL_GPIO_WritePin(USART2_DIR_GPIO_Port, USART2_DIR_Pin, GPIO_PIN_RESET);
-  // }
+  if (tx_size == 0) {
+    gpio_clear(GPIOA, GPIO1);
+  }
   rx_available = false;
 }
 
 static void data_setOutput(struct JVSIO_DataClient* client) {
   (void)client;
-  // HAL_GPIO_WritePin(USART2_DIR_GPIO_Port, USART2_DIR_Pin, GPIO_PIN_SET);
+  gpio_set(GPIOA, GPIO1);
 }
 
 static void data_startTransaction(struct JVSIO_DataClient* client) {
   (void)client;
   tx_size = 0;
+  tx_index = 0;
   tx_closing = false;
 }
 
 static void data_endTransaction(struct JVSIO_DataClient* client) {
   (void)client;
-  // HAL_UART_Transmit_IT(&huart2, tx_buffer, tx_size);
+  usart_enable_tx_interrupt(USART2);
 }
 
 static uint8_t data_read(struct JVSIO_DataClient* client) {
@@ -156,6 +164,7 @@ static void data_dump(struct JVSIO_DataClient* client,
 
 static void sense_begin(struct JVSIO_SenseClient* client) {
   (void)client;
+  // TODO
   // HAL_ADC_Start_DMA(&hadc1, &sense_data, 1);
 }
 
@@ -347,6 +356,25 @@ void JVS_HOST_Init() {
   systick_set_clocksource(STK_CSR_CLKSOURCE_AHB);
   systick_counter_enable();
   systick_interrupt_enable();
+
+  // Setup UART2 and GPIO for JVS RS584 communication.
+  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO1);
+  gpio_clear(GPIOA, GPIO1);
+
+  rcc_periph_clock_enable(RCC_USART2);
+
+  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL,
+                GPIO_USART2_TX);
+  gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO_USART2_RX);
+
+  usart_set_baudrate(USART2, 115200);
+  usart_set_databits(USART2, 8);
+  usart_set_stopbits(USART2, USART_STOPBITS_1);
+  usart_set_parity(USART2, USART_PARITY_NONE);
+  usart_set_mode(USART2, USART_MODE_TX_RX);
+  usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
+
+  usart_enable(USART2);
 
   data_client.available = data_available;
   data_client.setInput = data_setInput;
