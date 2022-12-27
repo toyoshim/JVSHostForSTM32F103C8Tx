@@ -7,7 +7,7 @@
     {
       "name": "Cortex Debug",
       "cwd": "${workspaceFolder}",
-      "executable": "./build/JVSHostForSTM32F103C8Tx.elf",
+      "executable": "./src/host_example.elf",
       "request": "launch",
       "preLaunchTask": "Make",
       "type": "cortex-debug",

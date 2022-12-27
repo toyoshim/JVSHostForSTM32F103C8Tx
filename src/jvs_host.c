@@ -7,7 +7,13 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#include "libopencm3/stm32/gpio.h"
+#include "libopencm3/stm32/rcc.h"
+#include "libopencm3/stm32/usart.h"
+
 #include "JVSIO_c.h"
+
+#define _DBGLOG
 
 static struct JVSIO_DataClient data_client;
 static struct JVSIO_SenseClient sense_client;
@@ -23,6 +29,28 @@ static uint8_t tx_size;
 static bool tx_closing;
 static uint8_t rx_data;
 static bool rx_available;
+
+static void usart1_tx_init(void) {
+  // Activate UART1 TX for debug logging.
+  rcc_periph_clock_enable(RCC_USART1);
+
+  gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL,
+                GPIO_USART1_TX);
+
+  usart_set_baudrate(USART1, 115200);
+  usart_set_databits(USART1, 8);
+  usart_set_stopbits(USART1, USART_STOPBITS_1);
+  usart_set_parity(USART1, USART_PARITY_NONE);
+  usart_set_mode(USART1, USART_MODE_TX);
+  usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
+
+  usart_enable(USART1);
+}
+
+static void usart1_tx_write(char* data, size_t size) {
+  for (size_t i = 0; i < size; ++i)
+    usart_send_blocking(USART1, data[i]);
+}
 
 /*
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
@@ -100,20 +128,15 @@ static void data_dump(struct JVSIO_DataClient* client,
                       uint8_t* data,
                       uint8_t len) {
   (void)client;
-  (void)str;
-  (void)data;
-  (void)len;
-  /*
   char sbuf[32];
   size_t size = snprintf(sbuf, 32, "%s: ", str);
-  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 1);
+  usart1_tx_write(sbuf, size);
   for (uint8_t i = 0; i < len; ++i) {
     size = snprintf(sbuf, 32, "%02x", data[i]);
-    HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 1);
+    usart1_tx_write(sbuf, size);
   }
   size = snprintf(sbuf, 32, "\r\n");
-  HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 1);
-  */
+  usart1_tx_write(sbuf, size);
 }
 
 static void sense_begin(struct JVSIO_SenseClient* client) {
@@ -261,19 +284,19 @@ static void host_synced(struct JVSIO_HostClient* client,
   // Example to dump all information.
   char sbuf[256];
   size_t size = snprintf(sbuf, 256, "%s\r\n", "--------------------");
-  // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  usart1_tx_write(sbuf, size);
   size = snprintf(sbuf, 256, "Players: %d\r\n", players);
-  // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  usart1_tx_write(sbuf, size);
   size =
       snprintf(sbuf, 256, "Test: %s\r\n", (coin_state & 0x80) ? "ON" : "OFF");
-  // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  usart1_tx_write(sbuf, size);
   for (uint8_t player = 0; player < players; ++player) {
     size = snprintf(sbuf, 256, "Coin %d: %s\r\n", player + 1,
                     (coin_state & (1 << player)) ? "ON" : "OFF");
-    // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+    usart1_tx_write(sbuf, size);
   }
   size = snprintf(sbuf, 256, "%s\r\n", "  StSvUpDnLtRtP1P2P3P4P5P6P7P8P9Pa");
-  // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, size, 10);
+  usart1_tx_write(sbuf, size);
   size = snprintf(sbuf, 256, "%s\r\n", "P0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0");
   for (uint8_t player = 0; player < players; ++player) {
     sbuf[1] = '1' + player;
@@ -293,12 +316,17 @@ static void host_synced(struct JVSIO_HostClient* client,
     sbuf[29] = (sw_state1[player] & 0x04) ? '1' : '0';
     sbuf[31] = (sw_state1[player] & 0x02) ? '1' : '0';
     sbuf[33] = (sw_state1[player] & 0x01) ? '1' : '0';
-    // HAL_UART_Transmit(&huart1, (uint8_t*)sbuf, 36, 10);
+    usart1_tx_write(sbuf, size);
   };
-  (void)size;
 }
 
 void JVS_HOST_Init() {
+  rcc_periph_clock_enable(RCC_GPIOA);
+
+#if defined(_DBGLOG)
+  usart1_tx_init();
+#endif  // defined(_DBGLOG)
+
   data_client.available = data_available;
   data_client.setInput = data_setInput;
   data_client.setOutput = data_setOutput;
