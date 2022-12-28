@@ -72,12 +72,15 @@ static void usart1_tx_write(char* data, size_t size) {
 void usart2_isr(void) {
   if (((USART_CR1(USART2) & USART_CR1_TXEIE) != 0) &&
       (USART_SR(USART2) & USART_SR_TXE) != 0) {
-    usart_send(USART2, tx_buffer[++tx_index]);
-    if (tx_index == tx_size)
+    usart_send(USART2, tx_buffer[tx_index++]);
+    if (tx_index == tx_size) {
+      usart_disable_tx_interrupt(USART2);
       usart_enable_tx_complete_interrupt(USART2);
+    }
   }
   if (((USART_CR1(USART2) & USART_CR1_TCIE) != 0) &&
       (USART_SR(USART2) & USART_SR_TC) != 0) {
+    usart_disable_tx_complete_interrupt(USART2);
     tx_size = 0;
     if (tx_closing) {
       gpio_clear(GPIOA, GPIO1);
@@ -95,6 +98,7 @@ static int data_available(struct JVSIO_DataClient* client) {
 
   if (!usart_get_flag(USART2, USART_SR_RXNE))
     return 0;
+  rx_data = usart_recv(USART2);
   rx_available = true;
   return 1;
 }
@@ -377,6 +381,7 @@ void JVS_HOST_Init() {
   usart_set_flow_control(USART2, USART_FLOWCONTROL_NONE);
 
   usart_enable(USART2);
+  nvic_enable_irq(NVIC_USART2_IRQ);
 
   // Setup ADC for JVS sense.
   rcc_periph_clock_enable(RCC_ADC1);
