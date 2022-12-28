@@ -1,2 +1,6 @@
 .vscode/.cortex-debug.*
 KiCAD/example/example-backups
+src/bin
+src/generated.*
+src/*.bin
+src/*.elf
