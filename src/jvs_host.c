@@ -9,6 +9,7 @@
 
 #include "libopencm3/cm3/nvic.h"
 #include "libopencm3/cm3/systick.h"
+#include "libopencm3/stm32/adc.h"
 #include "libopencm3/stm32/gpio.h"
 #include "libopencm3/stm32/rcc.h"
 #include "libopencm3/stm32/usart.h"
@@ -164,8 +165,9 @@ static void data_dump(struct JVSIO_DataClient* client,
 
 static void sense_begin(struct JVSIO_SenseClient* client) {
   (void)client;
-  // TODO
-  // HAL_ADC_Start_DMA(&hadc1, &sense_data, 1);
+  uint8_t channels[] = {ADC_CHANNEL5};
+  adc_set_regular_sequence(ADC1, 1, channels);
+  adc_start_conversion_direct(ADC1);
 }
 
 static void sense_set(struct JVSIO_SenseClient* client, bool ready) {
@@ -376,6 +378,19 @@ void JVS_HOST_Init() {
 
   usart_enable(USART2);
 
+  // Setup ADC for JVS sense.
+  rcc_periph_clock_enable(RCC_ADC1);
+  gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_ANALOG, GPIO5);
+  adc_power_off(ADC1);
+
+  adc_disable_scan_mode(ADC1);
+  adc_set_single_conversion_mode(ADC1);
+  adc_disable_external_trigger_regular(ADC1);
+  adc_set_left_aligned(ADC1);
+  adc_set_sample_time(ADC1, ADC_CHANNEL5, ADC_SMPR_SMP_239DOT5CYC);
+
+  adc_power_on(ADC1);
+
   data_client.available = data_available;
   data_client.setInput = data_setInput;
   data_client.setOutput = data_setOutput;
@@ -410,6 +425,10 @@ void JVS_HOST_Init() {
 }
 
 void JVS_HOST_Run() {
+  if (adc_eoc(ADC1)) {
+    sense_data = adc_read_regular(ADC1);
+    adc_start_conversion_direct(ADC1);
+  }
   if (io->host(io, &host_client)) {
     // Call `sync` while the bus is ready, or once per frame.
     // `synced` will be called when the response is parsed.
